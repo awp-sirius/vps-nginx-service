@@ -14,7 +14,7 @@ _На примере web API ASP .NET Core (.Net 6)_
 ## Настройка домена <a id="SetDomain"/>
 Необходимо прописать IP VPS в A-записи DNS для {domain} и www.{domain}
 
-## Первоначальная конфигурация, установка Docker. <a id="DockerConf"/>
+## <a id="DockerConf"></a> Первоначальная конфигурация, установка Docker.
 Подключение из powershell по ssh с паролем (не безопасно, лучше настроить ssh токен):
 ```bash
 ssh -l {ip/domain}
@@ -142,7 +142,7 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
 `
 
 ## Настройка Nginx, SSL <a id="SetNginxSSL"/>
-### Nginx <a id="Nginx"/>
+### <a id="Nginx"></a> Nginx
 Для nginx'a нам нужно будет расшарить 3 дирректории с использованием bind.
 * Bind для конфигурации `/etc/nginx/conf.d/default.conf`
 * Bind для получения и проверки сертификата Let's Encrypt `/var/www/certbot`
