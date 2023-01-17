@@ -14,7 +14,8 @@ _На примере web API ASP .NET Core (.Net 6)_
 ## Настройка домена <a id="SetDomain"/>
 Необходимо прописать IP VPS в A-записи DNS для {domain} и www.{domain}
 
-## <a id="DockerConf"></a> Первоначальная конфигурация, установка Docker.
+<a id="DockerConf"></a>
+## Первоначальная конфигурация, установка Docker.
 Подключение из powershell по ssh с паролем (не безопасно, лучше настроить ssh токен):
 ```bash
 ssh -l {ip/domain}
@@ -155,7 +156,9 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
 docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --mount type=bind,source=$(pwd)/NginxConf/default.conf,target=/etc/nginx/conf.d/default.conf --network {bridgeName} --name {nginxName} nginx
 ```
 Здесь для mount путь будет относительный, нужно убедиться что вы на верхнем уровне.
-### Certbot <a id="Cerbot"/>
+
+<a id="Cerbot"/>
+### Certbot 
 Я буду использовать отдельный контейнер с image certbot, но перед получением сертификата необходимо подготовиться.
 
 1. Изменить default.conf для обработки запросов Let's Encrypt:
