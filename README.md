@@ -11,7 +11,8 @@ _На примере web API ASP .NET Core (.Net 6)_
   - [Nginx](#Nginx)
   - [Certbot](#Cerbot)
 
-## Настройка домена <a id="SetDomain"/>
+<a id="SetDomain"></a>
+## Настройка домена
 Необходимо прописать IP VPS в A-записи DNS для {domain} и www.{domain}
 
 <a id="DockerConf"></a>
@@ -64,8 +65,9 @@ ssh -l {ip/domain}
   sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
   sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
   ```
-
-## Запуск необходимых контейнеров <a id="RunContainers"/>
+  
+<a id="RunContainers"></a>
+## Запуск необходимых контейнеров
 Я сознательно не использую docker compose.
 Для работы сервиса мне потребуется mongoDB и сам image сервиса.
 
@@ -73,8 +75,8 @@ ssh -l {ip/domain}
 ```bash
 docker network create {bridgeName} --driver bridge
 ```
-
-### mongoDB <a id="MongoDb"/>
+ <a id="MongoDb"></a>
+### mongoDB
 Запуск монги для теста:
 ```bash
 docker run -d -p 27017:27017 --name {mongoName} mongo
@@ -115,8 +117,8 @@ docker rm -f {mongoName}
 ```bash
 docker run -d -m 100m -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={userName} -e MONGO_INITDB_ROOT_PASSWORD={userPassword} --network {bridgeName} --name {mongoName} mongo
 ```
-
-### Service API <a id="ServiceAPI"/>
+<a id="ServiceAPI"></a>
+### Service API
 В Dockerfile сервиса убираю EXPOSE 443, т.к. в {bridgeName} трафик будет ходить без ssl.
 
 В Program/Config убираю app.UseHttpsRedirection(), дабы не редиректило.
@@ -142,8 +144,10 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
 -p 80:80/tcp
 `
 
-## Настройка Nginx, SSL <a id="SetNginxSSL"/>
-### <a id="Nginx"></a> Nginx
+<a id="SetNginxSSL"></a>
+## Настройка Nginx, SSL
+<a id="Nginx"></a>
+### Nginx
 Для nginx'a нам нужно будет расшарить 3 дирректории с использованием bind.
 * Bind для конфигурации `/etc/nginx/conf.d/default.conf`
 * Bind для получения и проверки сертификата Let's Encrypt `/var/www/certbot`
@@ -157,7 +161,7 @@ docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/cert
 ```
 Здесь для mount путь будет относительный, нужно убедиться что вы на верхнем уровне.
 
-<a id="Cerbot"/>
+<a id="Cerbot"></a>
 ### Certbot 
 Я буду использовать отдельный контейнер с image certbot, но перед получением сертификата необходимо подготовиться.
 
