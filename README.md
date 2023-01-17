@@ -2,14 +2,14 @@
 _На примере web API ASP .NET Core (.Net 6)_
 
 
-- [Настройка домена] (#SetDomain)
-- [Первоначальная конфигурация, установка Docker] (#DockerConf)
-- [Запуск необходимых контейнеров] (#RunContainers)
-  - [mongoDB] (#MongoDb)
-  - [Service API] (#ServiceAPI)
-- [Настройка Nginx, SSL] (#SetNginxSSL)
-  - [Nginx] (#Nginx)
-  - [Certbot] (#Cerbot)
+- [Настройка домена](#SetDomain)
+- [Первоначальная конфигурация, установка Docker](#DockerConf)
+- [Запуск необходимых контейнеров](#RunContainers)
+  - [mongoDB](#MongoDb)
+  - [Service API](#ServiceAPI)
+- [Настройка Nginx, SSL](#SetNginxSSL)
+  - [Nginx](#Nginx)
+  - [Certbot](#Cerbot)
 
 ## Настройка домена <a id="SetDomain"/>
 Необходимо прописать IP VPS в A-записи DNS для {domain} и www.{domain}
