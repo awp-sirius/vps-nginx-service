@@ -2,17 +2,19 @@
 _На примере web API ASP .NET Core (.Net 6)_
 
 
-- [Настройка домена]
-- [Первоначальная конфигурация, установка Docker]
-- [Запуск необходимых контейнеров]
-  - [mongoDB]
-  - [Service API]
-- [Настройка Nginx, SSL]
+- [Настройка домена] (#SetDomain)
+- [Первоначальная конфигурация, установка Docker] (#DockerConf)
+- [Запуск необходимых контейнеров] (#RunContainers)
+  - [mongoDB] (#MongoDb)
+  - [Service API] (#ServiceAPI)
+- [Настройка Nginx, SSL] (#SetNginxSSL)
+  - [Nginx] (#Nginx)
+  - [Certbot] (#Cerbot)
 
-## Настройка домена
+## Настройка домена <a id="SetDomain"/>
 Необходимо прописать IP VPS в A-записи DNS для {domain} и www.{domain}
 
-## Первоначальная конфигурация, установка Docker.
+## Первоначальная конфигурация, установка Docker. <a id="DockerConf"/>
 Подключение из powershell по ssh с паролем (не безопасно, лучше настроить ssh токен):
 ```bash
 ssh -l {ip/domain}
@@ -62,7 +64,7 @@ ssh -l {ip/domain}
   sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
   ```
 
-## Запуск необходимых контейнеров
+## Запуск необходимых контейнеров <a id="RunContainers"/>
 Я сознательно не использую docker compose.
 Для работы сервиса мне потребуется mongoDB и сам image сервиса.
 
@@ -71,7 +73,7 @@ ssh -l {ip/domain}
 docker network create {bridgeName} --driver bridge
 ```
 
-### mongoDB
+### mongoDB <a id="MongoDb"/>
 Запуск монги для теста:
 ```bash
 docker run -d -p 27017:27017 --name {mongoName} mongo
@@ -113,7 +115,7 @@ docker rm -f {mongoName}
 docker run -d -m 100m -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={userName} -e MONGO_INITDB_ROOT_PASSWORD={userPassword} --network {bridgeName} --name {mongoName} mongo
 ```
 
-### Service API
+### Service API <a id="ServiceAPI"/>
 В Dockerfile сервиса убираю EXPOSE 443, т.к. в {bridgeName} трафик будет ходить без ssl.
 
 В Program/Config убираю app.UseHttpsRedirection(), дабы не редиректило.
@@ -139,8 +141,8 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
 -p 80:80/tcp
 `
 
-## Настройка Nginx, SSL
-### Nginx
+## Настройка Nginx, SSL <a id="SetNginxSSL"/>
+### Nginx <a id="Nginx"/>
 Для nginx'a нам нужно будет расшарить 3 дирректории с использованием bind.
 * Bind для конфигурации `/etc/nginx/conf.d/default.conf`
 * Bind для получения и проверки сертификата Let's Encrypt `/var/www/certbot`
@@ -153,7 +155,7 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
 docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --mount type=bind,source=$(pwd)/NginxConf/default.conf,target=/etc/nginx/conf.d/default.conf --network {bridgeName} --name {nginxName} nginx
 ```
 Здесь для mount путь будет относительный, нужно убедиться что вы на верхнем уровне.
-### Certbot
+### Certbot <a id="Cerbot"/>
 Я буду использовать отдельный контейнер с image certbot, но перед получением сертификата необходимо подготовиться.
 
 1. Изменить default.conf для обработки запросов Let's Encrypt:
