@@ -128,6 +128,11 @@ docker run -d -e MONGODB_CONNSTRING=mongodb://{userName}:{userPassword}@{mongoNa
 -e TELEGRAM_BOTTOKEN={botToken}
 `
 
+Из проекта можно легко считать ключи:
+```C#
+var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
+```
+
 Для теста можно было открыть 80 порт tcp:
 
 `
