@@ -4,7 +4,10 @@ _На примере web API ASP .NET Core (.Net 6)_
 
 - [Настройка домена]
 - [Первоначальная конфигурация, установка Docker]
-
+- [Запуск необходимых контейнеров]
+  - [mongoDB]
+  - [Service API]
+- [Настройка Nginx, SSL]
 
 ## Настройка домена
 Необходимо прописать IP VPS в A-записи DNS для {domain} и www.{domain}
@@ -130,3 +133,124 @@ docker run -d -e MONGODB_CONNSTRING=mongodb://{userName}:{userPassword}@{mongoNa
 `
 -p 80:80/tcp
 `
+
+## Настройка Nginx, SSL
+### Nginx
+Для nginx'a нам нужно будет расшарить 3 дирректории с использованием bind.
+* Bind для конфигурации `/etc/nginx/conf.d/default.conf`
+* Bind для получения и проверки сертификата Let's Encrypt `/var/www/certbot`
+* Bind для приватного и публичного ключа сертификата `/etc/letsencrypt`
+
+Можно использовать как `-v` так и `--mount`. Однако, `-mount` не создаст дирректорию, если её не существует. А '-v' автоматически определяет bind или volume (если путь - то bind, если строка - то volume.
+
+Запуск nginx с примерами использования `-v` и `-mount`
+```bash
+docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --mount type=bind,source=$(pwd)/NginxConf/default.conf,target=/etc/nginx/conf.d/default.conf --network {bridgeName} --name {nginxName} nginx
+```
+Здесь для mount путь будет относительный, нужно убедиться что вы на верхнем уровне.
+### Certbot
+Я буду использовать отдельный контейнер с image certbot, но перед получением сертификата необходимо подготовиться.
+
+1. Изменить default.conf для обработки запросов Let's Encrypt:
+  * Открываем редактор файла:
+```bash
+vi ~/NginxConf/default.conf
+```
+  * Нажимаем INSERT для редактирования
+  * Можно отредактировать, но мне удобнее всё удалить и вставить из блокнота. Для удаления всех строк нужно нажать [ESC], ввести `:%d`, нажать [Enter].
+  * Вставляем конфиг. **Обязательно** заполняем оба server_name.
+```conf
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name  {domain} www.{domain};
+    server_tokens off;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+}
+```
+  * Проверяем т.к. может потеряться первый символ
+  * Для сохранения: [ESC], ввести `:wq`, нажать [Enter].
+  * Для выхода без сохранения: [ESC], ZZ (Shift + Z или со включённым CapsLock)
+2. Перезапустить nginx
+```bash
+docker restart {nginxName}
+```
+3. Получаем сертификат
+Я буду использовать команду, которую можно передать при запуске контейнера:
+
+`
+certonly --webroot -w /var/www/certbot --force-renewal --email {yourEmail} -d {domain} -d www.{domain} --agree-tos
+`
+
+Подробнее о certbot можно почитать тут: https://eff-certbot.readthedocs.io/en/stable/using.html
+
+  * Запускаем:
+```bash
+docker run -d -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --name {certbotName} certbot/certbot:latest certonly --webroot -w /var/www/certbot --force-renewal --email {yourEmail} -d {domain} -d www.{domain} --agree-tos
+```
+  * Ждём несколько секунд, и смотрим логи
+```bash
+docker logs {certbotName}
+```
+  * Если всё хорошо - будет строка `Successfully received certificate.` и пути, куда сохранены сертификаты.
+4. Переключаем nginx на работу по ssl
+  * Меняем default.conf на:
+```conf
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name {domain} www.{domain}
+    server_tokens off;
+
+    location / {
+        return 301 https://{domain}$request_uri;
+    }
+}
+
+server {
+    listen 443 default_server ssl http2;
+    listen [::]:443 ssl http2;
+
+    server_name {domain} www.{domain};
+
+    ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
+	ssl_trusted_certificate /etc/letsencrypt/live/{domain}/chain.pem;
+
+    ssl_session_cache shared:le_nginx_SSL:10m;
+    ssl_session_timeout 1440m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";	
+
+    location /api {
+        proxy_pass http://{serviceName};
+    }
+
+    location /swagger {
+        proxy_pass http://{serviceName};
+    }
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+}
+```
+  * Не забудьте везде сменить {domain} на ваш домен.
+  * location /api, /swagger приведены для примера.
+5. Перезапустить nginx
+```bash
+docker restart {nginxName}
+```
+6. Осталось настроить автоматический перевыпуск сертификата.
