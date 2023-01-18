@@ -19,7 +19,7 @@ _На примере web API ASP .NET Core (.Net 6)_
 ## Первоначальная конфигурация, установка Docker.
 Подключение из powershell по ssh с паролем (не безопасно, лучше настроить ssh токен):
 ```bash
-ssh -l {ip/domain}
+ssh -l root {ip/domain}
 ```
 Для Ubuntu:
 * Обновляем пакеты
@@ -155,11 +155,11 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
 
 Можно использовать как `-v` так и `--mount`. Однако, `-mount` не создаст дирректорию, если её не существует. А '-v' автоматически определяет bind или volume (если путь - то bind, если строка - то volume.
 
-Запуск nginx с примерами использования `-v` и `-mount`
+Запуск nginx
 ```bash
-docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --mount type=bind,source=$(pwd)/NginxConf/default.conf,target=/etc/nginx/conf.d/default.conf --network {bridgeName} --name {nginxName} nginx
+docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw -v ~/NginxConf:/etc/nginx/conf.d:ro --network {bridgeName} --name {nginxName} nginx
 ```
-Здесь для mount путь будет относительный, нужно убедиться что вы на верхнем уровне.
+Здесь будут созданы привязки bind, а не volume
 
 <a id="Cerbot"></a>
 ### Certbot 
