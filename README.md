@@ -9,7 +9,8 @@ _На примере web API ASP .NET Core (.Net 6)_
   - [Service API](#ServiceAPI)
 - [Настройка Nginx, SSL](#SetNginxSSL)
   - [Nginx](#Nginx)
-  - [Certbot](#Cerbot)
+  - [Certbot](#Cerbot)  
+- [Итого](#Results)
 
 <a id="SetDomain"></a>
 ## Настройка домена
@@ -19,7 +20,7 @@ _На примере web API ASP .NET Core (.Net 6)_
 ## Первоначальная конфигурация, установка Docker.
 Подключение из powershell по ssh с паролем (не безопасно, лучше настроить ssh токен):
 ```bash
-ssh -l root {ip/domain}
+ssh -o ServerAliveInterval=10800 -l root {ip/domain}
 ```
 Для Ubuntu:
 * Обновляем пакеты
@@ -115,7 +116,7 @@ docker rm -f {mongoName}
 
 Убираем открытый порт 27017 и запускаем монгу:
 ```bash
-docker run -d -m 100m -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={userName} -e MONGO_INITDB_ROOT_PASSWORD={userPassword} --network {bridgeName} --name {mongoName} mongo
+docker run -d -m 100m -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={userName} -e MONGO_INITDB_ROOT_PASSWORD={userPassword} --restart always --network {bridgeName} --name {mongoName} mongo
 ```
 <a id="ServiceAPI"></a>
 ### Service API
@@ -125,7 +126,7 @@ docker run -d -m 100m -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAM
 
 Публикуем image и запускаем контейнер:
 ```bash
-docker run -d -e MONGODB_CONNSTRING=mongodb://{userName}:{userPassword}@{mongoName} --network {bridgeName} --name {serviceName} {dockerImageName}
+docker run -d -e MONGODB_CONNSTRING=mongodb://{userName}:{userPassword}@{mongoName} --restart always --network {bridgeName} --name {serviceName} {dockerImageName}
 ```
 Можно передать и другие секреты таким образом:
 
@@ -157,7 +158,7 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
 
 Запуск nginx
 ```bash
-docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw -v ~/NginxConf:/etc/nginx/conf.d:ro --network {bridgeName} --name {nginxName} nginx
+docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw -v ~/NginxConf:/etc/nginx/conf.d:ro --restart always --network {bridgeName} --name {nginxName} nginx
 ```
 Здесь будут созданы привязки bind, а не volume
 
@@ -268,3 +269,62 @@ server {
 docker restart {nginxName}
 ```
 6. Осталось настроить автоматический перевыпуск сертификата.
+Я буду использовать контейнер certbot и crontab.
+  * Удаляем контейнер, который использовался для первого получения сертификата:
+```bash
+docker rm {cerbot}
+```
+  * Создаём новый контейнер
+```bash
+docker container create -d -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --name {certbotRenewName} certbot/certbot:latest renew --webroot -w /var/www/certbot --dry-run
+```
+Команда renew запустит обновление сертификата, только если срок его действия подходит к концу.
+
+Для проверки можно добавить параметр --force-renewal
+  * Теперь необходимо создать скрипт, который будет вызываться в crontab
+```bash
+mkdir scripts
+cd scripts
+vi cert-renew.sh
+```
+  * Пишем короткий скрипт, который запустит {certbotRenewName} и перезагрузить сертификаты nginx
+```bash
+# /bin/sh
+
+printf "[%s\n] Updating certificate..." "$now"
+docker start {certbotRenewName}
+docker exec {nginxName} nginx -s reload
+```
+  * Выдаём права:
+```bash
+chmod 715 cert-renew.sh
+```
+  * Записываем crontab:
+```bash
+crontab -u root -e
+```
+Разумеется, это вместо root можно настроить на другого пользователя. Но в этом случае необходимо убедиться, что у него будет права на скрипт и докер.
+
+Если crontab ещё пуст, то может запросить выбор тектового редактора (позже можно изменить при помощи команды `select-editor`). Мне удобнее использовать /usr/bin/vim.basic.
+
+В файл добавляем вызов скрипта:
+```bash
+0 3 * * * ~/scripts/cert-renew.sh >>~/scripts/cert-renew.log 2>&1
+```
+  * Проверяем, на всякий случай
+```bash
+crontab -u root -l
+```
+
+<a id="Results"></a>
+## Итого
+В конечном счёте у нас имеется:
+1. Контейнер MongoDb, без внешнего доступа (опционально)
+2. Том volume для хранения данных mongoDb
+3. Контейнер сервиса апи, работающий по сетевому мосту без ssl
+4. Контейнер Nginx с настроенным SSL, редиректом с http на https
+5. Том bind для конфига nginx'a
+6. Том bind для хранения сертификатов
+7. Том bind для верификации и получения нового сертификата
+8. Контейнер certbot для перевыпуска сертификата
+9. Задача crontab, инициализующая перевыпуск сертификата
