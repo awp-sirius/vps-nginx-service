@@ -21,7 +21,7 @@ _На примере web API ASP .NET Core (.Net 6)_
 ## Первоначальная конфигурация, установка Docker.
 Подключение из powershell по ssh с паролем (не безопасно, лучше настроить ssh токен):
 ```bash
-ssh -o ServerAliveInterval=10800 -l root {ip/domain}
+ssh -l root {ip/domain}
 ```
 Для Ubuntu:
 * Обновляем пакеты
@@ -318,6 +318,26 @@ crontab -u root -e
   * Проверяем, на всякий случай
 ```bash
 crontab -u root -l
+```
+Если мы пишем логи в cert-renew.log, то лучше ещё настроить его периодическую очистку.
+
+Добавим скрипт в папку scripts:
+```bash
+vi cert-renew-logClear.sh
+chmod 715 cert-renew-logClear.sh
+```
+```bash
+# /bin/sh
+
+TRIMpct=70
+FILELENGTH=`cat cert-renew.log|wc -l`
+LINES2TRIM=`echo ${TRIMpct}*(${FILELENGTH}/100)`
+sed -e "1,${LINES2TRIM}d" cert-renew.log >cert-renew.tmp
+cat cert-renew.tmp > cert-renew.log
+```
+И настроим вызов раз в несколько месяцев (время лучше поставить отличное от обновления, чтобы файл не был занят)
+```bash
+0 15 1 */6 * ~/scripts/cert-renew-logClear.sh >/dev/null 2>&1
 ```
 
 <a id="Results"></a>
