@@ -12,6 +12,7 @@ _На примере web API ASP .NET Core (.Net 6)_
   - [Certbot](#Cerbot)
   - [Перевыпуск сертификата](#CerbotRenew)
 - [Итого](#Results)
+- [Заметки](#Notes)
 
 <a id="SetDomain"></a>
 ## Настройка домена
@@ -81,7 +82,7 @@ docker network create {bridgeName} --driver bridge
 ### mongoDB
 Запуск монги для теста:
 ```bash
-docker run -d -p 27017:27017 --name {mongoName} mongo
+docker run -d -p 27017:27017 --name {mongoName} mongo:latest
 ```
 ConnectionString для подключения: `mongodb://{ip vps}:27017/`
 * Чтобы данные не удалялись после перезапуска контейнера, необходимо использоваль хранилище volume:
@@ -97,27 +98,35 @@ ConnectionString для подключения: `mongodb://{ip vps}:27017/`
 * Чтобы создать root пользователя при инициализации, можно передать переменные среды:
 
   `
-  -e MONGO_INITDB_ROOT_USERNAME={userName}
+  -e MONGO_INITDB_ROOT_USERNAME={rootUserName}
   `
 
   `
-  -e MONGO_INITDB_ROOT_PASSWORD={userPassword}
+  -e MONGO_INITDB_ROOT_PASSWORD={rootUserPassword}
   `
-* Чтобы ограничить потребление памяти монгой, можно установить лимит:
-
-  `
-  -m 100m
-  `
-  
 
 Удалить тестовый контейнер можно так:
 ```bash
 docker rm -f {mongoName}
 ```
-
-Убираем открытый порт 27017 и запускаем монгу:
+* Создаём отдельного пользователя для базы данных:
 ```bash
-docker run -d -m 100m -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={userName} -e MONGO_INITDB_ROOT_PASSWORD={userPassword} --restart always --network {bridgeName} --name {mongoName} mongo
+docker exec -it mongodb mongosh -u {rootUserName} -p {rootUserPassword}
+```
+```mongosh
+use mydb
+db.createUser({user: "myuser", pwd: "mypassword", roles: [{ role: 'readWrite', db:'mydb' }]})
+```
+Здесь `use mydb` переключает на базу данных mydb и создаёт её, если её не существует.
+
+`db.createUser` создаёт нового пользователя с правами доступа, согласно roles.
+
+Однако, сам пользователь будет создан в той бд, где мы находимся (при авторизации нужно будет указать mydb). Как вариант: `use admin`.
+
+`mongosh` жрёт прилично оперативной памяти.
+* Убираем открытый порт 27017 и запускаем монгу:
+```bash
+docker run -d -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={rootUserName} -e MONGO_INITDB_ROOT_PASSWORD={rootUserPassword} --restart always --network {bridgeName} --name {mongoName} mongo:latest
 ```
 <a id="ServiceAPI"></a>
 ### Service API
@@ -173,7 +182,7 @@ docker run -d -p 80:80 -p 443:443 -v ~/certbot/www:/var/www/certbot:rw -v ~/cert
 vi ~/NginxConf/default.conf
 ```
   * Нажимаем INSERT для редактирования
-  * Можно отредактировать, но мне удобнее всё удалить и вставить из блокнота. Для удаления всех строк нужно нажать [ESC], ввести `:%d`, нажать [Enter].
+  * Для удаления всех строк нужно нажать [ESC], ввести `:%d`, нажать [Enter].
   * Вставляем конфиг. **Обязательно** заполняем оба server_name.
 ```conf
 server {
@@ -208,10 +217,11 @@ certonly --webroot -w /var/www/certbot --force-renewal --email {yourEmail} -d {d
 ```bash
 docker run -d -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --name {certbotName} certbot/certbot:latest certonly --webroot -w /var/www/certbot --force-renewal --email {yourEmail} -d {domain} -d www.{domain} --agree-tos
 ```
-  * Ждём несколько секунд, и смотрим логи
+  * Смотри логи
 ```bash
-docker logs {certbotName}
+docker logs {certbotName} --follow
 ```
+Флаг `--follow` для обновления в реальном времени.
   * Если всё хорошо - будет строка `Successfully received certificate.` и пути, куда сохранены сертификаты.
 4. Переключаем nginx на работу по ssl
   * Меняем default.conf на:
@@ -326,8 +336,9 @@ crontab -u root -e
 
 В файл добавляем вызов скрипта:
 ```bash
-0 3 * * * ~/scripts/cert-renew.sh >>~/scripts/cert-renew.log 2>&1
+22 3 * * * ~/scripts/cert-renew.sh >>~/scripts/cert-renew.log 2>&1
 ```
+Let's Encrypt рекомендуют запускать обновление два раза в день в случайно выбранную минуту. 
   * Проверяем, на всякий случай
 ```bash
 crontab -u root -l
@@ -366,3 +377,31 @@ cat cert-renew.tmp > cert-renew.log
 8. Том bind для верификации и получения нового сертификата
 9. Контейнер certbot для перевыпуска сертификата
 10. Задача crontab, инициализующая перевыпуск сертификата
+
+<a id="Notes"></a>
+## Заметки
+* Отключение/включение подсветки синтаксиса в vim
+```bash
+:syntax off
+:syntax on
+```
+* Удаление всех контейнеров
+```bash
+docker rm $(docker ps -aq)
+```
+* Удаление всех images
+```bash
+docker rmi $(docker images -q)
+```
+* Удаление всех неиспользуемых томов
+```bash
+docker volume prune
+```
+* Переход в терминал контейнера
+```bash
+docker exec -t -i {name} /bin/bash
+```
+* Получить информацию об объекте докера
+```bash
+docker inspect {name}
+```
