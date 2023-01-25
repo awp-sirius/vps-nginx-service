@@ -78,7 +78,7 @@ ssh -l root {ip/domain}
 ```bash
 docker network create {bridgeName} --driver bridge
 ```
- <a id="MongoDb"></a>
+<a id="MongoDb"></a>
 ### mongoDB
 Запуск монги для теста:
 ```bash
@@ -98,14 +98,25 @@ ConnectionString для подключения: `mongodb://{ip vps}:27017/`
 * Чтобы создать root пользователя при инициализации, можно передать переменные среды:
 
   `
-  -e MONGO_INITDB_ROOT_USERNAME={rootUserName}
+  -e MONGO_INITDB_ROOT_USERNAME="{rootUserName}"
   `
 
   `
-  -e MONGO_INITDB_ROOT_PASSWORD={rootUserPassword}
+  -e MONGO_INITDB_ROOT_PASSWORD="{rootUserPassword}"
   `
 
-Удалить тестовый контейнер можно так:
+Пароль можно переложить в секреты докера. Команда создания строкового секрета:
+```bash
+printf "{rootUserPassword}" | docker secret create {rootPassSecretName} -
+```
+
+* Передача секрета в переменные контейнера:
+
+`
+--secret {rootPassSecretName} -e MONGO_INITDB_ROOT_PASSWORD="/run/secrets/{rootPassSecretName}"
+`
+
+Удалить тестовый контейнер:
 ```bash
 docker rm -f {mongoName}
 ```
@@ -124,9 +135,15 @@ db.createUser({user: "myuser", pwd: "mypassword", roles: [{ role: 'readWrite', d
 Однако, сам пользователь будет создан в той бд, где мы находимся (при авторизации нужно будет указать mydb). Как вариант: `use admin`.
 
 `mongosh` жрёт прилично оперативной памяти.
+
+* Заводим пароль созданного пользователя в секреты докера
+```bash
+printf "{mypassword}" | docker secret create {serviceUserPassword} -
+```
+
 * Убираем открытый порт 27017 и запускаем монгу:
 ```bash
-docker run -d -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={rootUserName} -e MONGO_INITDB_ROOT_PASSWORD={rootUserPassword} --restart always --network {bridgeName} --name {mongoName} mongo:latest
+docker run -d -v {mongoVolumeName}:/data/db --secret {serviceUserPassword} -e MONGO_INITDB_ROOT_PASSWORD="/run/secrets/{serviceUserPassword}" -e MONGO_INITDB_ROOT_USERNAME={rootUserName} --restart always --network {bridgeName} --name {mongoName} mongo:latest
 ```
 <a id="ServiceAPI"></a>
 ### Service API
@@ -136,17 +153,12 @@ docker run -d -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={rootU
 
 Публикуем image и запускаем контейнер:
 ```bash
-docker run -d -e MONGODB_CONNSTRING=mongodb://{userName}:{userPassword}@{mongoName} --restart always --network {bridgeName} --name {serviceName} {dockerImageName}
+docker run -d --secret {serviceUserPassword} -e MONGO_USER_PASSWORD="/run/secrets/{serviceUserPassword}" -e MONGO_USER_NAME="{myuser}" -e MONGO_HOST_PORT="{mongoName}:{port}" --restart always --network {bridgeName} --name {serviceName} {dockerImageName}
 ```
-Можно передать и другие секреты таким образом:
 
-`
--e TELEGRAM_BOTTOKEN={botToken}
-`
-
-Из проекта можно легко считать ключи:
+Считывание переменных из среды:
 ```C#
-var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOTTOKEN");
+var userPassword = Environment.GetEnvironmentVariable("MONGO_USER_PASSWORD");
 ```
 
 Для теста можно было открыть 80 порт tcp:
