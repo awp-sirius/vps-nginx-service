@@ -24,6 +24,10 @@ _На примере web API ASP .NET Core (.Net 6)_
 ```bash
 ssh -l root {ip/domain}
 ```
+Сменить пароль root
+```bash
+sudo passwd root
+```
 Для Ubuntu:
 * Обновляем пакеты
   ```bash
@@ -105,21 +109,16 @@ ConnectionString для подключения: `mongodb://{ip vps}:27017/`
   -e MONGO_INITDB_ROOT_PASSWORD="{rootUserPassword}"
   `
 
-Пароль можно переложить в секреты докера. Команда создания строкового секрета:
-```bash
-printf "{rootUserPassword}" | docker secret create {rootPassSecretName} -
-```
-
-* Передача секрета в переменные контейнера:
-
-`
---secret {rootPassSecretName} -e MONGO_INITDB_ROOT_PASSWORD="/run/secrets/{rootPassSecretName}"
-`
-
 Удалить тестовый контейнер:
 ```bash
 docker rm -f {mongoName}
 ```
+
+* Убираем открытый порт 27017 и запускаем монгу:
+```bash
+docker run -d -v {mongoVolumeName}:/data/db -e MONGO_INITDB_ROOT_USERNAME={rootUserName} -e MONGO_INITDB_ROOT_PASSWORD={rootUserPassword} --restart always --network {bridgeName} --name {mongoName} mongo:latest
+```
+
 * Создаём отдельного пользователя для базы данных:
 ```bash
 docker exec -it mongodb mongosh -u {rootUserName} -p {rootUserPassword}
@@ -136,15 +135,6 @@ db.createUser({user: "myuser", pwd: "mypassword", roles: [{ role: 'readWrite', d
 
 `mongosh` жрёт прилично оперативной памяти.
 
-* Заводим пароль созданного пользователя в секреты докера
-```bash
-printf "{mypassword}" | docker secret create {serviceUserPassword} -
-```
-
-* Убираем открытый порт 27017 и запускаем монгу:
-```bash
-docker run -d -v {mongoVolumeName}:/data/db --secret {serviceUserPassword} -e MONGO_INITDB_ROOT_PASSWORD="/run/secrets/{serviceUserPassword}" -e MONGO_INITDB_ROOT_USERNAME={rootUserName} --restart always --network {bridgeName} --name {mongoName} mongo:latest
-```
 <a id="ServiceAPI"></a>
 ### Service API
 В Dockerfile сервиса убираю EXPOSE 443, т.к. в {bridgeName} трафик будет ходить без ssl.
@@ -153,7 +143,7 @@ docker run -d -v {mongoVolumeName}:/data/db --secret {serviceUserPassword} -e MO
 
 Публикуем image и запускаем контейнер:
 ```bash
-docker run -d --secret {serviceUserPassword} -e MONGO_USER_PASSWORD="/run/secrets/{serviceUserPassword}" -e MONGO_USER_NAME="{myuser}" -e MONGO_HOST_PORT="{mongoName}:{port}" --restart always --network {bridgeName} --name {serviceName} {dockerImageName}
+docker run -d -e MONGO_USER_PASSWORD="{mypassword}" -e MONGO_USER_NAME="{myuser}" -e MONGO_HOST="{mongoName}" -e MONGO_PORT="{port}" --restart always --network {bridgeName} --name {serviceName} {dockerImageName}
 ```
 
 Считывание переменных из среды:
