@@ -305,7 +305,7 @@ docker rm {cerbot}
 ```
   * Создаём новый контейнер
 ```bash
-docker container create -d -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --name {certbotRenewName} certbot/certbot:latest renew --webroot -w /var/www/certbot --dry-run
+docker container create -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --name {certbotRenewName} certbot/certbot:latest renew --webroot -w /var/www/certbot --dry-run
 ```
 Команда renew запустит обновление сертификата, только если срок его действия подходит к концу.
 
@@ -320,7 +320,8 @@ vi cert-renew.sh
 ```bash
 # /bin/sh
 
-printf "[%s\n] Updating certificate..." "$now"
+now=`date +"%d.%m.%Y %T"`
+echo [${now}] Updating certificate...
 docker start {certbotRenewName}
 docker exec {nginxName} nginx -s reload
 ```
