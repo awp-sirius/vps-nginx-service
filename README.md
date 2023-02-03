@@ -248,7 +248,7 @@ server {
 
     ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
-	ssl_trusted_certificate /etc/letsencrypt/live/{domain}/chain.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/{domain}/chain.pem;
 
     ssl_session_cache shared:le_nginx_SSL:10m;
     ssl_session_timeout 1440m;
@@ -256,12 +256,35 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
     ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";	
+    
+    location ^~ /path/swagger/ {
+        proxy_set_header X-Forwarded-Prefix /path;
 
-    location /api {
+        rewrite ^/path/(.*)$ /$1 break;
         proxy_pass http://{serviceName};
     }
 
-    location /swagger {
+
+    location ^~ /path/api/ {
+
+        if ($request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin $http_origin;
+            add_header Access-Control-Allow-Methods 'GET, POST, OPTIONS';
+            add_header Access-Control-Allow-Headers 'X-Path, ApiKey, Content-Type';
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+
+            return 204;
+        }
+
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix /path;
+        proxy_set_header X-NginX-Proxy true;
+        proxy_set_header Host $http_host;
+
+        rewrite ^/path/(.*)$ /$1 break;
         proxy_pass http://{serviceName};
     }
 
