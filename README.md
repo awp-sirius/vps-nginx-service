@@ -235,6 +235,10 @@ server {
     server_name {domain} www.{domain}
     server_tokens off;
 
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    
     location / {
         return 301 https://{domain}$request_uri;
     }
@@ -288,10 +292,6 @@ server {
         proxy_pass http://{serviceName};
     }
 
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
     error_page   500 502 503 504  /50x.html;
     location = /50x.html {
         root   /usr/share/nginx/html;
@@ -328,7 +328,7 @@ docker rm {cerbot}
 ```
   * Создаём новый контейнер
 ```bash
-docker container create -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --name {certbotRenewName} certbot/certbot:latest renew --webroot -w /var/www/certbot --dry-run
+docker container create -v ~/certbot/www:/var/www/certbot:rw -v ~/certbot/conf:/etc/letsencrypt:rw --name {certbotRenewName} certbot/certbot:latest renew --webroot -w /var/www/certbot
 ```
 Команда renew запустит обновление сертификата, только если срок его действия подходит к концу.
 
